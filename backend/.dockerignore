@@ -1,0 +1,6 @@
+venv
+__pycache__
+*.pyc
+call_ai_demo.db
+temp_recordings
+.env
