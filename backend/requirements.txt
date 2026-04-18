@@ -6,3 +6,4 @@ python-dotenv
 twilio
 openai
 python-multipart
+websockets
