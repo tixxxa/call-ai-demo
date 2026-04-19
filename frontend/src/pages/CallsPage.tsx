@@ -32,6 +32,10 @@ export default function CallsPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [selectedCallIds, setSelectedCallIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
@@ -48,6 +52,7 @@ export default function CallsPage() {
 
       const data = await fetchCalls();
       setCalls(data);
+      setLastUpdatedAt(new Date().toLocaleTimeString());
     } catch (err) {
       console.error(err);
       setError("Failed to load calls.");
@@ -62,6 +67,18 @@ export default function CallsPage() {
   }, []);
 
   useEffect(() => {
+    if (!autoRefresh) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadCalls(false);
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [autoRefresh]);
+
+  useEffect(() => {
     setSelectedCallIds((currentSelectedIds) =>
       currentSelectedIds.filter((selectedId) => calls.some((call) => call.id === selectedId)),
     );
@@ -69,6 +86,13 @@ export default function CallsPage() {
 
   const filteredAndSortedCalls = useMemo(() => {
     const filtered = calls.filter((call) => {
+      const matchesSearch =
+        searchQuery.trim() === "" ||
+        String(call.id).includes(searchQuery.trim()) ||
+        (call.from_number ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (call.status ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
       if (urgencyFilter === "all") return true;
       return (call.urgency ?? "").toLowerCase() === urgencyFilter;
     });
@@ -84,7 +108,20 @@ export default function CallsPage() {
       const bRank = getUrgencyRank(b.urgency);
       return sortDirection === "asc" ? aRank - bRank : bRank - aRank;
     });
-  }, [calls, urgencyFilter, sortField, sortDirection]);
+  }, [calls, urgencyFilter, searchQuery, sortField, sortDirection]);
+
+  const stats = useMemo(() => {
+    const openCalls = calls.filter((call) => normalizeStatus(call.status) !== "completed").length;
+    const completedCalls = calls.filter((call) => normalizeStatus(call.status) === "completed").length;
+    const criticalCalls = calls.filter((call) => (call.urgency ?? "").toLowerCase() === "critical").length;
+
+    return [
+      { label: "Total Calls", value: String(calls.length) },
+      { label: "Open Calls", value: String(openCalls) },
+      { label: "Completed", value: String(completedCalls) },
+      { label: "Critical", value: String(criticalCalls) },
+    ];
+  }, [calls]);
 
   const filteredCallIds = filteredAndSortedCalls.map((call) => call.id);
   const allFilteredSelected =
@@ -114,14 +151,6 @@ export default function CallsPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete calls ${sortedSelectedIds.join(", ")}?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
       setDeleting(true);
       setError("");
@@ -130,6 +159,7 @@ export default function CallsPage() {
         currentCalls.filter((call) => !response.deleted_call_ids.includes(call.id)),
       );
       setSelectedCallIds([]);
+      setConfirmDeleteOpen(false);
     } catch (err) {
       console.error(err);
       setError("Failed to delete selected calls.");
@@ -159,15 +189,35 @@ export default function CallsPage() {
         </button>
       </header>
 
+      <section className="stats-grid">
+        {stats.map((stat) => (
+          <article key={stat.label} className="card stat-card">
+            <p className="stat-label">{stat.label}</p>
+            <strong className="stat-value">{stat.value}</strong>
+          </article>
+        ))}
+      </section>
+
       <div className="toolbar card">
         <div className="toolbar-actions">
           <button
             className="danger-button"
-            onClick={handleDeleteSelected}
+            onClick={() => setConfirmDeleteOpen(true)}
             disabled={selectedCallIds.length === 0 || deleting}
           >
             {deleting ? "Deleting..." : `Delete Selected (${selectedCallIds.length})`}
           </button>
+        </div>
+
+        <div className="toolbar-group toolbar-search">
+          <label htmlFor="searchQuery">Search</label>
+          <input
+            id="searchQuery"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by call id, caller, or status"
+          />
         </div>
 
         <div className="toolbar-group">
@@ -207,6 +257,20 @@ export default function CallsPage() {
             <option value="desc">Descending</option>
             <option value="asc">Ascending</option>
           </select>
+        </div>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+          />
+          <span>Auto-refresh every 15s</span>
+        </label>
+
+        <div className="toolbar-meta">
+          <span>Visible calls: {filteredAndSortedCalls.length}</span>
+          <span>Last updated: {lastUpdatedAt ?? "Not yet loaded"}</span>
         </div>
       </div>
 
@@ -273,6 +337,36 @@ export default function CallsPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {confirmDeleteOpen && (
+        <div className="modal-backdrop" onClick={() => !deleting && setConfirmDeleteOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2>Delete Calls?</h2>
+            <p>
+              Are you sure you want to delete{" "}
+              {selectedCallIds.length === 1 ? "call" : "calls"}{" "}
+              <strong>{[...selectedCallIds].sort((a, b) => a - b).join(", ")}</strong>?
+            </p>
+            <p className="modal-copy">
+              This will permanently remove the selected calls and any linked tickets, transcript,
+              analysis, and recording records from the dashboard.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="ghost-button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button className="danger-button" onClick={handleDeleteSelected} disabled={deleting}>
+                {deleting ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

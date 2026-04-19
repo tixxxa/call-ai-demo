@@ -28,6 +28,9 @@ export default function TicketsBoardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingTicketId, setUpdatingTicketId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   async function loadTickets(showFullLoading = true) {
     try {
@@ -40,6 +43,7 @@ export default function TicketsBoardPage() {
 
       const data = await fetchTickets();
       setTickets(data);
+      setLastUpdatedAt(new Date().toLocaleTimeString());
     } catch (err) {
       console.error(err);
       setError("Failed to load tickets.");
@@ -52,6 +56,18 @@ export default function TicketsBoardPage() {
   useEffect(() => {
     loadTickets(true);
   }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadTickets(false);
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [autoRefresh]);
 
   async function handleCompleteTicket(ticketId: number) {
     try {
@@ -68,10 +84,26 @@ export default function TicketsBoardPage() {
     }
   }
 
+  const visibleTickets = useMemo(
+    () =>
+      tickets.filter((ticket) => {
+        if (!searchQuery.trim()) return true;
+
+        const query = searchQuery.toLowerCase();
+        return (
+          ticket.title.toLowerCase().includes(query) ||
+          String(ticket.id).includes(query) ||
+          String(ticket.call_id).includes(query) ||
+          (ticket.from_number ?? "").toLowerCase().includes(query)
+        );
+      }),
+    [searchQuery, tickets],
+  );
+
   const groupedTickets = useMemo(() => {
     const groups = new Map<string, TicketBoardItem[]>();
 
-    tickets.forEach((ticket) => {
+    visibleTickets.forEach((ticket) => {
       const key = normalizeStatus(ticket.status);
       const current = groups.get(key) ?? [];
       current.push(ticket);
@@ -90,7 +122,19 @@ export default function TicketsBoardPage() {
       statusKey,
       tickets: groups.get(statusKey) ?? [],
     }));
-  }, [tickets]);
+  }, [visibleTickets]);
+
+  const stats = useMemo(() => {
+    const completed = tickets.filter((ticket) => normalizeStatus(ticket.status) === "completed").length;
+    const open = tickets.length - completed;
+
+    return [
+      { label: "Total Tickets", value: String(tickets.length) },
+      { label: "Open Tickets", value: String(open) },
+      { label: "Completed", value: String(completed) },
+      { label: "Visible", value: String(visibleTickets.length) },
+    ];
+  }, [tickets, visibleTickets.length]);
 
   return (
     <div className="page page-wide">
@@ -112,6 +156,42 @@ export default function TicketsBoardPage() {
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </header>
+
+      <section className="stats-grid">
+        {stats.map((stat) => (
+          <article key={stat.label} className="card stat-card">
+            <p className="stat-label">{stat.label}</p>
+            <strong className="stat-value">{stat.value}</strong>
+          </article>
+        ))}
+      </section>
+
+      <div className="toolbar card">
+        <div className="toolbar-group toolbar-search">
+          <label htmlFor="ticketSearchQuery">Search</label>
+          <input
+            id="ticketSearchQuery"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by ticket, call, title, or caller"
+          />
+        </div>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+          />
+          <span>Auto-refresh every 15s</span>
+        </label>
+
+        <div className="toolbar-meta">
+          <span>Visible tickets: {visibleTickets.length}</span>
+          <span>Last updated: {lastUpdatedAt ?? "Not yet loaded"}</span>
+        </div>
+      </div>
 
       {loading && <p>Loading tickets...</p>}
       {error && <p className="error">{error}</p>}

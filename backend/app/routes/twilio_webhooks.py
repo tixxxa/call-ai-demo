@@ -1,4 +1,6 @@
 import os
+import json
+import logging
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import Response
@@ -9,7 +11,13 @@ from app.db import get_db
 from app.models import Call
 from app.services.ticket_service import upsert_ticket_for_call
 
+from app.models import Analysis, Recording, Transcript
+from app.services.twilio_service import download_twilio_recording
+from app.services.transcription_service import transcribe_audio_file
+from app.services.analysis_service import analyze_transcript
+
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 
@@ -30,7 +38,7 @@ def incoming_call(
     To: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
-    print("Incoming AI call:", CallSid, From, To)
+    logger.info("Incoming AI call sid=%s from=%s to=%s", CallSid, From, To)
 
     existing_call = db.query(Call).filter(Call.twilio_call_sid == CallSid).first()
     if not existing_call:
@@ -82,17 +90,17 @@ def recording_complete(
     RecordingStatus: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
-    print("Recording callback received:")
-    print("CallSid:", CallSid)
-    print("RecordingSid:", RecordingSid)
-    print("RecordingUrl:", RecordingUrl)
-    print("RecordingDuration:", RecordingDuration)
-    print("RecordingStatus:", RecordingStatus)
+    logger.info(
+        "Recording callback sid=%s recording_sid=%s status=%s duration=%s",
+        CallSid,
+        RecordingSid,
+        RecordingStatus,
+        RecordingDuration,
+    )
 
-    from app.models import Analysis, Recording, Transcript
-    from app.services.twilio_service import download_twilio_recording
-    from app.services.transcription_service import transcribe_audio_file
-    from app.services.analysis_service import analyze_transcript
+    if not CallSid or not RecordingSid or not RecordingUrl:
+        logger.warning("Recording callback missing required fields.")
+        return {"ok": False, "message": "Missing required recording fields"}
 
     call = db.query(Call).filter(Call.twilio_call_sid == CallSid).first()
     if not call:
@@ -135,7 +143,6 @@ def recording_complete(
         if not existing_analysis:
             analysis_result = analyze_transcript(transcript_text)
 
-            import json
             analysis = Analysis(
                 call_id=call.id,
                 summary=analysis_result.get("summary"),
@@ -156,10 +163,11 @@ def recording_complete(
             )
             db.commit()
 
-        print("Post-call transcript and analysis saved for call:", call.id)
+        logger.info("Post-call transcript and analysis saved for call_id=%s", call.id)
 
     except Exception as e:
-        print("Error during post-call pipeline:", str(e))
+        db.rollback()
+        logger.exception("Error during post-call pipeline for call_id=%s", call.id)
         return {"ok": False, "message": str(e)}
 
     finally:
@@ -175,7 +183,7 @@ def voice_status(
     CallStatus: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
-    print("Voice status update:", CallSid, CallStatus)
+    logger.info("Voice status update sid=%s status=%s", CallSid, CallStatus)
 
     call = db.query(Call).filter(Call.twilio_call_sid == CallSid).first()
     if call:

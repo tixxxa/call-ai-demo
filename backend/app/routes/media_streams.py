@@ -2,12 +2,14 @@ import asyncio
 import base64
 import json
 import os
+import logging
 
 import websockets
 from fastapi import APIRouter, WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
@@ -50,7 +52,7 @@ if not OPENAI_API_KEY:
 @router.websocket("/media-stream")
 async def media_stream(websocket: WebSocket):
     await websocket.accept()
-    print("Twilio media stream connected.")
+    logger.info("Twilio media stream connected.")
 
     async with websockets.connect(
         f"wss://api.openai.com/v1/realtime?model={REALTIME_MODEL}",
@@ -81,7 +83,7 @@ async def media_stream(websocket: WebSocket):
                         last_assistant_item = None
                         response_start_timestamp_twilio = None
                         mark_queue.clear()
-                        print(f"Twilio stream started: {stream_sid}")
+                        logger.info("Twilio stream started sid=%s", stream_sid)
 
                     elif event_type == "media":
                         latest_media_timestamp = int(data["media"]["timestamp"])
@@ -97,11 +99,11 @@ async def media_stream(websocket: WebSocket):
                             mark_queue.pop(0)
 
                     elif event_type == "stop":
-                        print("Twilio stream stopped.")
+                        logger.info("Twilio stream stopped.")
                         break
 
             except WebSocketDisconnect:
-                print("Twilio websocket disconnected.")
+                logger.info("Twilio websocket disconnected.")
 
             finally:
                 try:
@@ -118,7 +120,7 @@ async def media_stream(websocket: WebSocket):
                     event_type = response.get("type")
 
                     if event_type in LOG_EVENT_TYPES:
-                        print("OpenAI event:", event_type)
+                        logger.debug("OpenAI event type=%s", event_type)
 
                     if event_type == "response.output_audio.delta" and response.get("delta"):
                         audio_delta = {
@@ -161,7 +163,7 @@ async def media_stream(websocket: WebSocket):
                             response_start_timestamp_twilio = None
 
             except Exception as e:
-                print("Error sending OpenAI audio back to Twilio:", str(e))
+                logger.exception("Error sending OpenAI audio back to Twilio: %s", str(e))
 
         await asyncio.gather(receive_from_twilio(), send_to_twilio())
 
@@ -187,7 +189,7 @@ async def initialize_openai_session(openai_ws):
     }
 
     await openai_ws.send(json.dumps(session_update))
-    print("OpenAI realtime session initialized.")
+    logger.info("OpenAI realtime session initialized.")
 
 
 async def send_initial_greeting(openai_ws):

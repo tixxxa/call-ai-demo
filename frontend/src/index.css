@@ -111,6 +111,60 @@ a {
   background: white;
 }
 
+.toolbar-group input {
+  min-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: white;
+}
+
+.toolbar-search {
+  flex: 1 1 280px;
+}
+
+.toolbar-meta {
+  display: flex;
+  gap: 14px;
+  color: #6b7280;
+  font-size: 14px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  padding: 18px 20px;
+}
+
+.stat-label {
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-value {
+  font-size: 30px;
+  line-height: 1;
+}
+
 .calls-table {
   width: 100%;
   border-collapse: collapse;
@@ -186,16 +240,29 @@ a {
   cursor: pointer;
 }
 
+.ghost-button {
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: white;
+  color: #111827;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+}
+
 .button-link:hover,
 .refresh-button:hover,
 .secondary-button:hover,
-.danger-button:hover {
+.danger-button:hover,
+.ghost-button:hover {
   opacity: 0.92;
 }
 
 .refresh-button:disabled,
 .secondary-button:disabled,
-.danger-button:disabled {
+.danger-button:disabled,
+.ghost-button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
@@ -423,4 +490,39 @@ a {
   color: #6b7280;
   font-size: 13px;
   flex-wrap: wrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-card {
+  width: min(520px, 100%);
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.24);
+}
+
+.modal-card h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.modal-copy {
+  color: #6b7280;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
 }
