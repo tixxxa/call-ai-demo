@@ -18,6 +18,7 @@ class Call(Base):
     recordings = relationship("Recording", back_populates="call", cascade="all, delete-orphan")
     transcript = relationship("Transcript", back_populates="call", uselist=False, cascade="all, delete-orphan")
     analysis = relationship("Analysis", back_populates="call", uselist=False, cascade="all, delete-orphan")
+    ticket = relationship("Ticket", back_populates="call", uselist=False, cascade="all, delete-orphan")
 
 
 class Recording(Base):
@@ -57,3 +58,17 @@ class Analysis(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     call = relationship("Call", back_populates="analysis")
+
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    call_id = Column(Integer, ForeignKey("calls.id"), unique=True, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    recommended_action = Column(Text, nullable=True)
+    status = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    call = relationship("Call", back_populates="ticket")

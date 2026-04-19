@@ -18,7 +18,8 @@ def analyze_transcript(transcript_text: str) -> dict:
                 "role": "user",
                 "content": (
                     "Analyze this transcript and extract a short summary, key topics, "
-                    "action items, sentiment, and urgency.\n\n"
+                    "action items, sentiment, urgency, a concise ticket title, and "
+                    "the single best recommended follow-up action.\n\n"
                     f"Transcript:\n{transcript_text}"
                 ),
             },
@@ -34,6 +35,10 @@ def analyze_transcript(transcript_text: str) -> dict:
                         "summary": {
                             "type": "string",
                             "description": "A short 1-3 sentence summary of the call."
+                        },
+                        "ticket_title": {
+                            "type": "string",
+                            "description": "A concise Jira-style ticket title, 4-10 words."
                         },
                         "topics": {
                             "type": "array",
@@ -52,14 +57,20 @@ def analyze_transcript(transcript_text: str) -> dict:
                         "urgency": {
                             "type": "string",
                             "enum": ["low", "medium", "high", "critical"]
+                        },
+                        "recommended_action": {
+                            "type": "string",
+                            "description": "The single most important next step."
                         }
                     },
                     "required": [
                         "summary",
+                        "ticket_title",
                         "topics",
                         "action_items",
                         "sentiment",
-                        "urgency"
+                        "urgency",
+                        "recommended_action"
                     ],
                     "additionalProperties": False
                 }

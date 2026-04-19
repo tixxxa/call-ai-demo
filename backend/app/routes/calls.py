@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Call, Recording
+from app.services.ticket_service import upsert_ticket_for_call
 
 router = APIRouter()
 
@@ -41,6 +42,11 @@ def get_call(call_id: int, db: Session = Depends(get_db)):
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
 
+    if call.analysis and not call.ticket:
+        upsert_ticket_for_call(db, call)
+        db.commit()
+        db.refresh(call)
+
     return {
         "id": call.id,
         "twilio_call_sid": call.twilio_call_sid,
@@ -72,7 +78,16 @@ def get_call(call_id: int, db: Session = Depends(get_db)):
             "sentiment": call.analysis.sentiment,
             "urgency": call.analysis.urgency,
             "created_at": str(call.analysis.created_at),
-        }
+        },
+        "ticket": None if not call.ticket else {
+            "id": call.ticket.id,
+            "call_id": call.ticket.call_id,
+            "title": call.ticket.title,
+            "description": call.ticket.description,
+            "recommended_action": call.ticket.recommended_action,
+            "status": call.ticket.status,
+            "created_at": str(call.ticket.created_at),
+        },
     }
 
 

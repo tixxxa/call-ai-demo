@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { fetchCallById } from "../api/calls";
+import { completeTicket } from "../api/tickets";
+import { formatStatusLabel, normalizeStatus } from "../lib/callStatus";
 import type { CallDetail } from "../types/call";
 
 function formatDate(value: string): string {
@@ -13,6 +15,7 @@ export default function CallDetailPage() {
   const { id } = useParams();
   const [call, setCall] = useState<CallDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatingTicket, setUpdatingTicket] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -37,6 +40,32 @@ export default function CallDetailPage() {
     loadCall();
   }, [id]);
 
+  async function handleCompleteTicket() {
+    if (!call?.ticket) return;
+
+    try {
+      setUpdatingTicket(true);
+      const updatedTicket = await completeTicket(call.ticket.id);
+      setCall((currentCall) => {
+        if (!currentCall) return currentCall;
+
+        return {
+          ...currentCall,
+          status: updatedTicket.status,
+          ticket: {
+            ...currentCall.ticket!,
+            status: updatedTicket.status,
+          },
+        };
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update ticket status.");
+    } finally {
+      setUpdatingTicket(false);
+    }
+  }
+
   if (loading) {
     return <div className="page"><p>Loading call details...</p></div>;
   }
@@ -54,6 +83,11 @@ export default function CallDetailPage() {
     <div className="page">
       <div className="detail-header">
         <div>
+          <div className="page-nav">
+            <Link to="/" className="nav-link">Calls</Link>
+            <span className="nav-separator">/</span>
+            <Link to="/board" className="nav-link">Tickets Board</Link>
+          </div>
           <h1>Call Details #{call.id}</h1>
           <p>Review the call metadata, transcript, recording, and AI-generated analysis.</p>
         </div>
@@ -74,8 +108,8 @@ export default function CallDetailPage() {
 
           <div className="badge-stack">
             <div>
-              <span className={`badge status-${(call.status ?? "unknown").toLowerCase()}`}>
-                {call.status ?? "Unknown"}
+              <span className={`badge status-${normalizeStatus(call.status)}`}>
+                {formatStatusLabel(call.status)}
               </span>
             </div>
 
@@ -133,6 +167,42 @@ export default function CallDetailPage() {
           </>
         ) : (
           <p>No AI analysis available.</p>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Auto-Created Ticket</h2>
+        {call.ticket ? (
+          <div className="ticket-detail">
+            <div className="ticket-card-meta">
+              <span className="ticket-key">TKT-{call.ticket.id}</span>
+              <span className={`badge status-${normalizeStatus(call.ticket.status)}`}>
+                {formatStatusLabel(call.ticket.status)}
+              </span>
+            </div>
+
+            <h3>{call.ticket.title}</h3>
+            <p>{call.ticket.description ?? "No description available."}</p>
+
+            <div className="list-block">
+              <h3>Recommended Action</h3>
+              <p>{call.ticket.recommended_action ?? "No action suggested."}</p>
+            </div>
+
+            {normalizeStatus(call.ticket.status) !== "completed" && (
+              <button
+                className="secondary-button"
+                onClick={handleCompleteTicket}
+                disabled={updatingTicket}
+              >
+                {updatingTicket ? "Updating..." : "Mark Ticket Complete"}
+              </button>
+            )}
+
+            <Link to="/board" className="table-link">View on ticket board</Link>
+          </div>
+        ) : (
+          <p>No ticket yet. A ticket is created automatically after the AI summary is available.</p>
         )}
       </section>
 

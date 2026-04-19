@@ -23,6 +23,16 @@ export type Analysis = {
   created_at: string;
 };
 
+export type Ticket = {
+  id: number;
+  call_id: number;
+  title: string;
+  description: string | null;
+  recommended_action: string | null;
+  status: string | null;
+  created_at: string;
+};
+
 export type CallListItem = {
   id: number;
   twilio_call_sid: string;
@@ -45,4 +55,5 @@ export type CallDetail = {
   recordings: Recording[];
   transcript: Transcript | null;
   analysis: Analysis | null;
+  ticket: Ticket | null;
 };
