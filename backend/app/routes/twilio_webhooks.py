@@ -7,6 +7,7 @@ from twilio.twiml.voice_response import Connect, Start, VoiceResponse
 
 from app.db import get_db
 from app.models import Call
+from app.services.ticket_service import upsert_ticket_for_call
 
 router = APIRouter()
 
@@ -88,7 +89,7 @@ def recording_complete(
     print("RecordingDuration:", RecordingDuration)
     print("RecordingStatus:", RecordingStatus)
 
-    from app.models import Recording, Transcript, Analysis
+    from app.models import Analysis, Recording, Transcript
     from app.services.twilio_service import download_twilio_recording
     from app.services.transcription_service import transcribe_audio_file
     from app.services.analysis_service import analyze_transcript
@@ -146,6 +147,15 @@ def recording_complete(
             db.add(analysis)
             db.commit()
 
+            db.refresh(call)
+            upsert_ticket_for_call(
+                db,
+                call,
+                ai_ticket_title=analysis_result.get("ticket_title"),
+                ai_recommended_action=analysis_result.get("recommended_action"),
+            )
+            db.commit()
+
         print("Post-call transcript and analysis saved for call:", call.id)
 
     except Exception as e:
@@ -170,6 +180,8 @@ def voice_status(
     call = db.query(Call).filter(Call.twilio_call_sid == CallSid).first()
     if call:
         call.status = CallStatus
+        if call.ticket:
+            call.ticket.status = CallStatus
         db.commit()
 
     return {"ok": True}

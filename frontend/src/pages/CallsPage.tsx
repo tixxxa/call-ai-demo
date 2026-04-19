@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { fetchCalls } from "../api/calls";
+import { formatStatusLabel, normalizeStatus } from "../lib/callStatus";
 import type { CallListItem } from "../types/call";
 
 type SortField = "created_at" | "urgency";
@@ -81,8 +82,12 @@ export default function CallsPage() {
     <div className="page">
       <header className="page-header calls-header">
         <div>
-          <h1>Call Review Dashboard</h1>
-          <p>Monitor inbound calls, review transcripts, and inspect AI-generated insights.</p>
+          <div className="page-nav">
+            <span className="nav-link active">Calls</span>
+            <span className="nav-separator">/</span>
+            <Link to="/board" className="nav-link">Tickets Board</Link>
+          </div>
+          <h1>Call Dashboard</h1>
         </div>
 
         <button
@@ -168,8 +173,8 @@ export default function CallsPage() {
                     </td>
                     <td>{call.from_number ?? "Unknown"}</td>
                     <td>
-                      <span className={`badge status-${(call.status ?? "unknown").toLowerCase()}`}>
-                        {call.status ?? "Unknown"}
+                      <span className={`badge status-${normalizeStatus(call.status)}`}>
+                        {formatStatusLabel(call.status)}
                       </span>
                     </td>
                     <td>
