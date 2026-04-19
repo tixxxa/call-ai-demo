@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { fetchCalls } from "../api/calls";
+import { deleteCalls, fetchCalls } from "../api/calls";
 import { formatStatusLabel, normalizeStatus } from "../lib/callStatus";
 import type { CallListItem } from "../types/call";
 
@@ -29,7 +29,9 @@ export default function CallsPage() {
   const [calls, setCalls] = useState<CallListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedCallIds, setSelectedCallIds] = useState<number[]>([]);
 
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [sortField, setSortField] = useState<SortField>("created_at");
@@ -59,6 +61,12 @@ export default function CallsPage() {
     loadCalls(true);
   }, []);
 
+  useEffect(() => {
+    setSelectedCallIds((currentSelectedIds) =>
+      currentSelectedIds.filter((selectedId) => calls.some((call) => call.id === selectedId)),
+    );
+  }, [calls]);
+
   const filteredAndSortedCalls = useMemo(() => {
     const filtered = calls.filter((call) => {
       if (urgencyFilter === "all") return true;
@@ -78,6 +86,58 @@ export default function CallsPage() {
     });
   }, [calls, urgencyFilter, sortField, sortDirection]);
 
+  const filteredCallIds = filteredAndSortedCalls.map((call) => call.id);
+  const allFilteredSelected =
+    filteredCallIds.length > 0 && filteredCallIds.every((callId) => selectedCallIds.includes(callId));
+
+  function toggleCallSelection(callId: number) {
+    setSelectedCallIds((currentSelectedIds) =>
+      currentSelectedIds.includes(callId)
+        ? currentSelectedIds.filter((selectedId) => selectedId !== callId)
+        : [...currentSelectedIds, callId],
+    );
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedCallIds((currentSelectedIds) => {
+      if (allFilteredSelected) {
+        return currentSelectedIds.filter((selectedId) => !filteredCallIds.includes(selectedId));
+      }
+
+      return [...new Set([...currentSelectedIds, ...filteredCallIds])];
+    });
+  }
+
+  async function handleDeleteSelected() {
+    const sortedSelectedIds = [...selectedCallIds].sort((a, b) => a - b);
+    if (sortedSelectedIds.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete calls ${sortedSelectedIds.join(", ")}?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError("");
+      const response = await deleteCalls(sortedSelectedIds);
+      setCalls((currentCalls) =>
+        currentCalls.filter((call) => !response.deleted_call_ids.includes(call.id)),
+      );
+      setSelectedCallIds([]);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete selected calls.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="page">
       <header className="page-header calls-header">
@@ -93,13 +153,23 @@ export default function CallsPage() {
         <button
           className="refresh-button"
           onClick={() => loadCalls(false)}
-          disabled={loading || refreshing}
+          disabled={loading || refreshing || deleting}
         >
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </header>
 
       <div className="toolbar card">
+        <div className="toolbar-actions">
+          <button
+            className="danger-button"
+            onClick={handleDeleteSelected}
+            disabled={selectedCallIds.length === 0 || deleting}
+          >
+            {deleting ? "Deleting..." : `Delete Selected (${selectedCallIds.length})`}
+          </button>
+        </div>
+
         <div className="toolbar-group">
           <label htmlFor="urgencyFilter">Filter by urgency</label>
           <select
@@ -148,12 +218,19 @@ export default function CallsPage() {
           <table className="calls-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    aria-label="Select all visible calls"
+                  />
+                </th>
                 <th>Call ID</th>
                 <th>Caller</th>
                 <th>Status</th>
                 <th>Urgency</th>
                 <th>Created</th>
-                <th>Recordings</th>
               </tr>
             </thead>
             <tbody>
@@ -166,6 +243,14 @@ export default function CallsPage() {
               ) : (
                 filteredAndSortedCalls.map((call) => (
                   <tr key={call.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedCallIds.includes(call.id)}
+                        onChange={() => toggleCallSelection(call.id)}
+                        aria-label={`Select call ${call.id}`}
+                      />
+                    </td>
                     <td>
                       <Link to={`/calls/${call.id}`} className="table-link">
                         {call.id}
@@ -183,7 +268,6 @@ export default function CallsPage() {
                       </span>
                     </td>
                     <td>{formatDate(call.created_at)}</td>
-                    <td>{call.recordings_count}</td>
                   </tr>
                 ))
               )}

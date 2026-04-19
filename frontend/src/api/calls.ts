@@ -14,3 +14,10 @@ export async function fetchCallById(callId: string): Promise<CallDetail> {
   const response = await api.get<CallDetail>(`/calls/${callId}`);
   return response.data;
 }
+
+export async function deleteCalls(callIds: number[]): Promise<{ deleted_call_ids: number[] }> {
+  const response = await api.delete<{ deleted_call_ids: number[] }>("/calls/", {
+    data: { call_ids: callIds },
+  });
+  return response.data;
+}

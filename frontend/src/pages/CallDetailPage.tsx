@@ -89,7 +89,6 @@ export default function CallDetailPage() {
             <Link to="/board" className="nav-link">Tickets Board</Link>
           </div>
           <h1>Call Details #{call.id}</h1>
-          <p>Review the call metadata, transcript, recording, and AI-generated analysis.</p>
         </div>
 
         <div>

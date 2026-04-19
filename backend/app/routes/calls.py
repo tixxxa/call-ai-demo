@@ -3,6 +3,7 @@ import os
 import requests
 from requests.auth import HTTPBasicAuth
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -12,6 +13,10 @@ from app.models import Call, Recording
 from app.services.ticket_service import upsert_ticket_for_call
 
 router = APIRouter()
+
+
+class DeleteCallsPayload(BaseModel):
+    call_ids: list[int]
 
 
 @router.get("/")
@@ -88,6 +93,27 @@ def get_call(call_id: int, db: Session = Depends(get_db)):
             "status": call.ticket.status,
             "created_at": str(call.ticket.created_at),
         },
+    }
+
+
+@router.delete("/")
+def delete_calls(payload: DeleteCallsPayload, db: Session = Depends(get_db)):
+    call_ids = sorted(set(payload.call_ids))
+    if not call_ids:
+        raise HTTPException(status_code=400, detail="No call ids provided")
+
+    calls = db.query(Call).filter(Call.id.in_(call_ids)).all()
+    found_ids = sorted(call.id for call in calls)
+    missing_ids = [call_id for call_id in call_ids if call_id not in found_ids]
+
+    for call in calls:
+        db.delete(call)
+
+    db.commit()
+
+    return {
+        "deleted_call_ids": found_ids,
+        "missing_call_ids": missing_ids,
     }
 
 
