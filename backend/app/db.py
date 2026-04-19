@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+import os
 
-DATABASE_URL = "sqlite:///./call_ai_demo.db"
+os.makedirs("data", exist_ok=True)
+
+DATABASE_URL = "sqlite:///./data/call_ai_demo.db"
 
 engine = create_engine(
     DATABASE_URL,

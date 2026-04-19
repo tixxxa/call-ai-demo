@@ -12,7 +12,7 @@ services:
       BASE_URL: ${BASE_URL}
     volumes:
       - ./backend/app:/app/app
-      - ./backend/call_ai_demo.db:/app/call_ai_demo.db
+      - ./backend/data:/app/data
       - ./backend/temp_recordings:/app/temp_recordings
     restart: unless-stopped
 
@@ -30,6 +30,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  backend_data:
